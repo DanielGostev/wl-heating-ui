@@ -101,15 +101,6 @@ class WebUI:
         self._label4 = ui.label("4")
         self.line_plot = TemperaturePlot()
 
-        # with ui.row():
-        #     with ui.plot(figsize=(5, 3)):
-        #         x = np.linspace(0.0, 5.0)
-        #         y1 = np.linspace(0.0, 6.1)
-        #         y2 = np.linspace(0.0, 5)
-        #         y3 = np.linspace(0.0, 54)
-        #         y4 = np.linspace(0.0, 12)
-        #         plt.plot(x, y1, '-', x, y2, '-', x, y3, '-', x, y4, '-')
-
         ui.label("Auto Mode")
         with ui.row():
             slider = ui.slider(min=0, max=75, step=1, value=20)
