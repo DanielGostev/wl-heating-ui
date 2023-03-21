@@ -29,6 +29,6 @@ class MqttControl:
 
     def on_message(self, client, userdata, message):
         payload = json.loads(message.payload.decode("utf-8"))
-#        print("Message received: " + payload["sensor_id"], payload["temperature"])
+        print("Message received: " + payload["sensor_id"], payload["temperature"])
         self._sensor_logger.log_data(sensor_data.SensorData(payload["sensor_id"], payload["temperature"], time.time()))
 
