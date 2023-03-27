@@ -2,17 +2,21 @@ import mqtt
 import time
 import sensor_data
 import ui
+import hardware_state as hs
 
 
 def main():
     sensor_logger = sensor_data.SensorLogger()
+    hardware_state = hs.HardwareState()
+
 #    mqtt_control = mqtt.MqttControl("192.168.45.19", 1883, sensor_logger)
-#    mqtt_control = mqtt.MqttControl("192.168.178.35", 1883, sensor_logger)
-    mqtt_control = mqtt.MqttControl("192.168.0.216", 1883, sensor_logger) # Pazardzhik
+    mqtt_control = mqtt.MqttControl("192.168.178.35", 1883, sensor_logger)
     mqtt_control.connect_broker()
     mqtt_control.subscribe("temp/pico")
+    hardware_state.subscribe(mqtt_control)
 
-    web_ui = ui.WebUI(sensor_logger)
+    web_ui = ui.WebUI(sensor_logger, hardware_state)
+    hardware_state.subscribe(web_ui)
     web_ui.run()
 
     try:

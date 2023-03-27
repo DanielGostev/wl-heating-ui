@@ -1,8 +1,8 @@
 import time
-
 import matplotlib.dates
 import numpy as np
 
+from hardware_state import HardwareState
 from sensor_data import SensorLogger
 from nicegui import ui
 from datetime import datetime
@@ -13,8 +13,9 @@ from matplotlib.dates import DateFormatter, DayLocator, HourLocator
 
 
 class WebUI:
-    def __init__(self, sensor_logger: SensorLogger):
+    def __init__(self, sensor_logger: SensorLogger, hardware_state: HardwareState):
         self._sensor_logger = sensor_logger
+        self._hardware_state = hardware_state
         self.__draw_ui__()
 
     def run(self):
@@ -94,6 +95,9 @@ class WebUI:
         self.line_updates1 = ui.timer(0.1, self.update_line_plot, active=False)
         ui.notify("Stop Measuring")
 
+    def hardware_state_changed(self, hardware_state):
+        heater_current_state, heater_desired_state, fan_current_state, fan_desired_state = hardware_state.get_state()
+
     def __draw_ui__(self):
         self._label1 = ui.label("1")
         self._label2 = ui.label("2")
@@ -110,12 +114,20 @@ class WebUI:
 
         ui.label("Manual Mode")
         with ui.row():
-            ui.button('Heaters On', on_click=lambda: ui.notify(f'You clicked me!'))
-            ui.button('Ventilators On', on_click=lambda: ui.notify(f'You clicked me!'))
-        with ui.row():
-            ui.button('Ventilators Off', on_click=lambda: ui.notify(f'You clicked me!'))
-            ui.button('Heaters Off', on_click=lambda: ui.notify(f'You clicked me!'))
+            self._switch1 = ui.switch('Heaters', on_change=lambda: self._change_heater_state())
+            self._switch2 = ui.switch('Fans', on_change=lambda: self._change_fan_state())
 
+    def _change_heater_state(self):
+        if self._switch1.value:
+            self._hardware_state.change_state(heater_desired_state="on")
+        else:
+            self._hardware_state.change_state(heater_desired_state="off")
+
+    def _change_fan_state(self):
+        if self._switch2.value:
+            self._hardware_state.change_state(fan_desired_state="on")
+        else:
+            self._hardware_state.change_state(fan_desired_state="off")
 
 class TemperaturePlot:
     def __init__(self):
