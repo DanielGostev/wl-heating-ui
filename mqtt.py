@@ -24,7 +24,8 @@ class MqttControl:
 
     def hardware_state_changed(self, hardware_state):
         heater_current_state, heater_desired_state, fan_current_state, fan_desired_state = hardware_state.get_state()
-        self.paho_client.publish(topic="control/pico", payload=json.dumps({"Fan": fan_desired_state, "Heater": heater_desired_state}))
+        self.paho_client.publish(topic="control/pico", payload=json.dumps({"Fan": fan_desired_state,
+                                                                           "Heater": heater_desired_state}))
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:

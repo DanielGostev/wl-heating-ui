@@ -32,28 +32,28 @@ class WebUI:
                 self._label4.set_text("Sensor: Pico_bb, no active measurements")
 
             else:
-                sd1 = self._sensor_logger.get_data(sensor_id="pico_fb_1")
+                sd1 = self._sensor_logger.get_data(sensor_id="pico_ft")
                 if sd1 is not None:
                     last_data1 = sd1[-1]
                     self._label1.set_text("Sensor ID: " + last_data1.sensor_id + " Temperature: " +
                                           str(last_data1.temperature) + " " +
                                           datetime.fromtimestamp(last_data1.timestamp).strftime('%Y-%m-%d %H:%M:%S'))
 
-                sd2 = self._sensor_logger.get_data(sensor_id="pico_bb")
+                sd2 = self._sensor_logger.get_data(sensor_id="pico_fb")
                 if sd2 is not None:
                     last_data2 = sd2[-1]
                     self._label2.set_text("Sensor ID: " + last_data2.sensor_id + " Temperature: " +
                                           str(last_data2.temperature) + " " +
                                           datetime.fromtimestamp(last_data2.timestamp).strftime('%Y-%m-%d %H:%M:%S'))
 
-                sd3 = self._sensor_logger.get_data(sensor_id="pico_ft")
+                sd3 = self._sensor_logger.get_data(sensor_id="pico_bt")
                 if sd3 is not None:
                     last_data3 = sd3[-1]
                     self._label3.set_text("Sensor ID: " + last_data3.sensor_id + " Temperature: " +
                                           str(last_data3.temperature) + " " +
                                           datetime.fromtimestamp(last_data3.timestamp).strftime('%Y-%m-%d %H:%M:%S'))
 
-                sd4 = self._sensor_logger.get_data(sensor_id="pico_ft")
+                sd4 = self._sensor_logger.get_data(sensor_id="pico_bb")
                 if sd4 is not None:
                     last_data4 = sd4[-1]
                     self._label4.set_text("Sensor ID: " + last_data4.sensor_id + " Temperature: " +
@@ -61,9 +61,9 @@ class WebUI:
                                           datetime.fromtimestamp(last_data4.timestamp).strftime('%Y-%m-%d %H:%M:%S'))
 
                 else:
-                    self._label1.set_text("Sensor Pico_fb no data")
-                    self._label2.set_text("Sensor Pico_bb no data")
-                    self._label3.set_text("Sensor Pico_bb no data")
+                    self._label1.set_text("Sensor Pico_ft no data")
+                    self._label2.set_text("Sensor Pico_fb no data")
+                    self._label3.set_text("Sensor Pico_bt no data")
                     self._label4.set_text("Sensor Pico_bb no data")
             time.sleep(1.0)
 
@@ -72,7 +72,7 @@ class WebUI:
             return
         timestamps = []
         temperatures = []
-        sensor_ids = {"pico_fb_1", "pico_ft", "pico_bb"}
+        sensor_ids = {"pico_ft", "pico_fb", "pico_bt", "pico_bb"}
         for sensor_id in sensor_ids:
             sd = self._sensor_logger.get_data(sensor_id=sensor_id)
             if sd is None:
@@ -89,11 +89,45 @@ class WebUI:
         self._sensor_logger.enable_logging = True
         self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=True)
         ui.notify("Starting Measuring")
+        t = Thread(target=self._measuring_cycle)
+        t.start()
+
+    def _measuring_cycle(self):
+        while True:
+            if not self._sensor_logger.enable_logging:
+                self._hardware_state.change_state(heater_desired_state="off")
+                self._hardware_state.change_state(fan_desired_state="off")
+                return
+            t_min = 1000
+            t_max = 0
+            for k, v in self._sensor_logger.last_data:
+                if t_max < v.temperature:
+                    t_max = v.temperature
+                if t_min > v.temperature:
+                    t_min = v.temperature # find t_max and t_min
+            if self.slider.value - 3 <= t_min <= self.slider.value + 3 and self.slider.value - 3 <= t_max <= self.slider.value + 3:
+                self._hardware_state.change_state(heater_desired_state="off")
+                self._hardware_state.change_state(fan_desired_state="off")
+            else:
+                if t_max > self.slider.value + 3:
+                    self._hardware_state.change_state(heater_desired_state="off")
+                else:
+                    self._hardware_state.change_state(heater_desired_state="on")
+                self._hardware_state.change_state(fan_desired_state="on")
+            time.sleep(60)
 
     def _stop_measurement(self):
         self._sensor_logger.enable_logging = False
         self.line_updates1 = ui.timer(0.1, self.update_line_plot, active=False)
         ui.notify("Stop Measuring")
+
+    def _show_temperature(self):
+        self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=True)
+        ui.notify("Showing Temperature")
+
+    def _hide_temperature(self):
+        self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=False)
+        ui.notify("Hiding Temperature")
 
     def hardware_state_changed(self, hardware_state):
         heater_current_state, heater_desired_state, fan_current_state, fan_desired_state = hardware_state.get_state()
@@ -107,10 +141,12 @@ class WebUI:
 
         ui.label("Auto Mode")
         with ui.row():
-            slider = ui.slider(min=0, max=75, step=1, value=20)
-            ui.linear_progress().bind_value_from(slider, 'value')
+            self.slider = ui.slider(min=25, max=75, step=1, value=40)
+            ui.linear_progress().bind_value_from(self.slider, 'value')
             ui.button('Auto Mode Start', on_click=lambda: self._start_measurement())
             ui.button('Stop Measurements', on_click=lambda: self._stop_measurement())
+            ui.button('Show Temperature', on_click=lambda: self._show_temperature())
+            ui.button('Hide Temperature', on_click=lambda: self._hide_temperature())
 
         ui.label("Manual Mode")
         with ui.row():
@@ -131,9 +167,9 @@ class WebUI:
 
 class TemperaturePlot:
     def __init__(self):
-        self._plot_n = 3
+        self._plot_n = 4
         self.line_plot = ui.line_plot(n=self._plot_n, limit=4200, figsize=(12, 5), update_every=1) \
-            .with_legend(['pico1', 'pico2', 'pico3'], loc='upper center', ncol=self._plot_n)
+            .with_legend(['pico_ft', 'pic_fb', 'pico_bt', 'pico_bb'], loc='upper center', ncol=self._plot_n)
         self._last_timestamp = {}
 
     def push_data(self, timestamp: List[float], temp: List[float]):
@@ -148,6 +184,6 @@ class TemperaturePlot:
 
             ax = self.line_plot.fig.get_axes()[0]
             format_str = '%H:%M:%S'
-            format_ = matplotlib.dates.DateFormatter(format_str, tz=pytz.timezone("Europe/Luxembourg"))
+            format_ = matplotlib.dates.DateFormatter(format_str, tz=pytz.timezone("Africa/Accra"))
             ax.xaxis.set_major_formatter(format_)
             self.line_plot.fig.autofmt_xdate()
