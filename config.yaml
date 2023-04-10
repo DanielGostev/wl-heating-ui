@@ -1,0 +1,10 @@
+mqtt:
+  address: 192.168.0.106
+  port: 1883
+  topic: "temp/pico"
+dataDir: "./data"
+sensors:
+  - "pico_ft"
+  - "pico_fb"
+  - "pico_bt"
+  - "pico_bb"

@@ -37,3 +37,9 @@ class MqttControl:
         payload = json.loads(message.payload.decode("utf-8"))
 #        print("Message received: " + payload["sensor_id"], payload["temperature"])
         self._sensor_logger.log_data(sensor_data.SensorData(payload["sensor_id"], payload["temperature"], time.time()))
+        try:
+            payload = json.loads(message.payload.decode("utf-8"))
+            print("Message received: " + payload["sensor_id"], payload["temperature"])
+            self._sensor_logger.log_data(sensor_data.SensorData(payload["sensor_id"], payload["temperature"], time.time()))
+        except json.JSONDecodeError:
+            print("Unable to parse json " + message.payload.decode("utf-8"))

@@ -22,3 +22,7 @@ class SensorLogger:
 
     def get_data(self, sensor_id):
         return self._sensor_data.get(sensor_id)
+
+    def reset_data(self):
+        self._sensor_data = {}
+        self.last_data = {}

@@ -2,6 +2,7 @@ import time
 import matplotlib.dates
 import numpy as np
 
+import config
 from hardware_state import HardwareState
 from sensor_data import SensorLogger
 from nicegui import ui
@@ -9,6 +10,8 @@ from datetime import datetime
 from threading import Thread
 from typing import List
 import pytz
+import os
+import csv
 from matplotlib.dates import DateFormatter, DayLocator, HourLocator
 
 
@@ -31,7 +34,6 @@ class WebUI:
                 self._label2.set_text("Sensor: Pico_bb, no active measurements")
                 self._label3.set_text("Sensor: Pico_bb, no active measurements")
                 self._label4.set_text("Sensor: Pico_bb, no active measurements")
-
             else:
                 sd1 = self._sensor_logger.get_data(sensor_id="pico_ft")
                 if sd1 is not None:
@@ -86,6 +88,23 @@ class WebUI:
 
         self.line_plot.push_data(timestamps, temperatures)
 
+    def _init_measurement(self):
+        with ui.dialog() as dialog, ui.card():
+            file_name = ui.input(validation={'Measurement with that name already exists':
+                                                    lambda value: not os.path.exists(
+                                                        os.path.join(config.data_dir, file_name.value + ".csv"))})
+            ui.button('Start Measurement', on_click=lambda: self._on_start_measurement_dialog(dialog, file_name))
+        dialog.open()
+
+    def _on_start_measurement_dialog(self, dialog, file_name):
+        if not os.path.exists(os.path.join(config.data_dir, file_name.value + ".csv")):
+                self._current_log_file = os.path.join(config.data_dir, file_name.value + ".csv")
+                dialog.close()
+                self._start_measurement()
+        else:
+            ui.notify("Measurement with that name already exists")
+            return
+
     def _start_measurement(self):
         self._enable_measurements = True
         self._sensor_logger.enable_logging = True
@@ -93,6 +112,27 @@ class WebUI:
         ui.notify("Starting Measuring")
         t = Thread(target=self._measuring_cycle)
         t.start()
+        log_t = Thread(target=self._write_to_log)
+        log_t.start()
+
+    def _write_to_log(self):
+        with open(self._current_log_file, "a", newline='')  as log_file:
+            fieldnames = ['sensor id', 'temperature', 'timestamp']
+            writer = csv.DictWriter(log_file, fieldnames=fieldnames)
+            writer.writeheader()
+            last_timestamp = 0
+            while self._sensor_logger.enable_logging:
+                for sensor_id in config.sensor_ids:
+                    try:
+                        sd = self._sensor_logger.last_data[sensor_id]
+                        if sd.timestamp > last_timestamp:
+                            writer.writerow({'sensor id': sensor_id, 'temperature': sd.temperature,
+                                             'timestamp': time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(sd.timestamp))})
+                            last_timestamp = sd.timestamp
+                    except KeyError:
+                        pass
+                time.sleep(1)
+            log_file.close()
 
     def _measuring_cycle(self):
         while True:
@@ -106,7 +146,7 @@ class WebUI:
                 if t_max < v.temperature:
                     t_max = v.temperature
                 if t_min > v.temperature:
-                    t_min = v.temperature # find t_max and t_min
+                    t_min = v.temperature  # find t_max and t_min
             if self.slider.value - 3 <= t_min <= self.slider.value + 3 and self.slider.value - 3 <= t_max <= self.slider.value + 3:
                 self._hardware_state.change_state(heater_desired_state="off")
                 self._hardware_state.change_state(fan_desired_state="off")
@@ -119,8 +159,8 @@ class WebUI:
             time.sleep(5)
 
     def _stop_measurement(self):
-        self._sensor_logger.enable_logging = False
         self._enable_measurements = False
+        self._sensor_logger.reset_data()
         self.line_updates1 = ui.timer(0.1, self.update_line_plot, active=False)
         self._hardware_state.change_state(heater_desired_state="off")
         self._hardware_state.change_state(fan_desired_state="off")
@@ -150,7 +190,7 @@ class WebUI:
         with ui.row():
             self.slider = ui.slider(min=25, max=75, step=1, value=40)
             ui.linear_progress().bind_value_from(self.slider, 'value')
-            ui.button('Auto Mode Start', on_click=lambda: self._start_measurement())
+            ui.button('Auto Mode Start', on_click=lambda: self._init_measurement())
             ui.button('Stop Measurements', on_click=lambda: self._stop_measurement())
             ui.button('Show Temperature', on_click=lambda: self._show_temperature())
             ui.button('Hide Temperature', on_click=lambda: self._hide_temperature())
@@ -171,6 +211,7 @@ class WebUI:
             self._hardware_state.change_state(fan_desired_state="on")
         else:
             self._hardware_state.change_state(fan_desired_state="off")
+
 
 class TemperaturePlot:
     def __init__(self):

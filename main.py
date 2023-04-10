@@ -3,6 +3,7 @@ import time
 import sensor_data
 import ui
 import hardware_state as hs
+import config
 
 
 def main():
@@ -10,9 +11,9 @@ def main():
     hardware_state = hs.HardwareState()
 
 #    mqtt_control = mqtt.MqttControl("192.168.45.19", 1883, sensor_logger)
-    mqtt_control = mqtt.MqttControl("192.168.178.35", 1883, sensor_logger)
+    mqtt_control = mqtt.MqttControl(config.mqtt_address, config.mqtt_port, sensor_logger)
     mqtt_control.connect_broker()
-    mqtt_control.subscribe("temp/pico")
+    mqtt_control.subscribe(config.mqtt_topic)
     hardware_state.subscribe(mqtt_control)
 
     web_ui = ui.WebUI(sensor_logger, hardware_state)
