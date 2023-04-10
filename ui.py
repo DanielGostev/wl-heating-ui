@@ -17,6 +17,7 @@ class WebUI:
         self._sensor_logger = sensor_logger
         self._hardware_state = hardware_state
         self.__draw_ui__()
+        self._enable_measurements = False
 
     def run(self):
         t = Thread(target=self._label_updater)
@@ -86,6 +87,7 @@ class WebUI:
         self.line_plot.push_data(timestamps, temperatures)
 
     def _start_measurement(self):
+        self._enable_measurements = True
         self._sensor_logger.enable_logging = True
         self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=True)
         ui.notify("Starting Measuring")
@@ -94,13 +96,13 @@ class WebUI:
 
     def _measuring_cycle(self):
         while True:
-            if not self._sensor_logger.enable_logging:
+            if not self._enable_measurements:
                 self._hardware_state.change_state(heater_desired_state="off")
                 self._hardware_state.change_state(fan_desired_state="off")
                 return
             t_min = 1000
             t_max = 0
-            for k, v in self._sensor_logger.last_data:
+            for v in self._sensor_logger.last_data.values():
                 if t_max < v.temperature:
                     t_max = v.temperature
                 if t_min > v.temperature:
@@ -114,18 +116,23 @@ class WebUI:
                 else:
                     self._hardware_state.change_state(heater_desired_state="on")
                 self._hardware_state.change_state(fan_desired_state="on")
-            time.sleep(60)
+            time.sleep(5)
 
     def _stop_measurement(self):
         self._sensor_logger.enable_logging = False
+        self._enable_measurements = False
         self.line_updates1 = ui.timer(0.1, self.update_line_plot, active=False)
+        self._hardware_state.change_state(heater_desired_state="off")
+        self._hardware_state.change_state(fan_desired_state="off")
         ui.notify("Stop Measuring")
 
     def _show_temperature(self):
+        self._sensor_logger.enable_logging = True
         self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=True)
         ui.notify("Showing Temperature")
 
     def _hide_temperature(self):
+        self._sensor_logger.enable_logging = False
         self.line_updates1 = ui.timer(0.5, self.update_line_plot, active=False)
         ui.notify("Hiding Temperature")
 
@@ -178,7 +185,6 @@ class TemperaturePlot:
             for i in range(0, self._plot_n):
                 temp_vals.append([temp[i]])
 
-            print(temp_vals)
             self.line_plot.push([matplotlib.dates.date2num(datetime.fromtimestamp(timestamp[0], None))], temp_vals)
             self._last_timestamp = timestamp[-1]
 
