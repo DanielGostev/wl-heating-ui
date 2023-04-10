@@ -10,7 +10,6 @@ def main():
     sensor_logger = sensor_data.SensorLogger()
     hardware_state = hs.HardwareState()
 
-#    mqtt_control = mqtt.MqttControl("192.168.45.19", 1883, sensor_logger)
     mqtt_control = mqtt.MqttControl(config.mqtt_address, config.mqtt_port, sensor_logger)
     mqtt_control.connect_broker()
     mqtt_control.subscribe(config.mqtt_topic)

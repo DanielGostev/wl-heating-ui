@@ -21,6 +21,9 @@ with open("config.yaml", "r") as stream:
             os.makedirs(data_dir)
         sensor_ids = config["sensors"]
         if sensor_ids is None or sensor_ids == "":
-            sensor_ids = {"pico_ft", "pico_fb", "pico_bt", "pico_bb"}
+            sensor_ids = ["pico_ft", "pico_fb", "pico_bt", "pico_bb"]
+        web_ui = config["webUI"]
+        if web_ui is None or web_ui == "":
+            web_ui = {"host": "0.0.0.0", "port": 8080}
     except yaml.YAMLError as exc:
         print(exc)

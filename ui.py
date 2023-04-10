@@ -12,7 +12,10 @@ from typing import List
 import pytz
 import os
 import csv
+import glob
 from matplotlib.dates import DateFormatter, DayLocator, HourLocator
+from fastapi.responses import FileResponse
+from nicegui import app, ui
 
 
 class WebUI:
@@ -21,11 +24,12 @@ class WebUI:
         self._hardware_state = hardware_state
         self.__draw_ui__()
         self._enable_measurements = False
+        self._current_log_file_path = ""
 
     def run(self):
         t = Thread(target=self._label_updater)
         t.start()
-        ui.run(reload=False)
+        ui.run(host=config.web_ui["host"], port=config.web_ui["port"], reload=False)
 
     def _label_updater(self):
         while True:
@@ -98,7 +102,7 @@ class WebUI:
 
     def _on_start_measurement_dialog(self, dialog, file_name):
         if not os.path.exists(os.path.join(config.data_dir, file_name.value + ".csv")):
-                self._current_log_file = os.path.join(config.data_dir, file_name.value + ".csv")
+                self._current_log_file_path = os.path.join(config.data_dir, file_name.value + ".csv")
                 dialog.close()
                 self._start_measurement()
         else:
@@ -116,7 +120,7 @@ class WebUI:
         log_t.start()
 
     def _write_to_log(self):
-        with open(self._current_log_file, "a", newline='')  as log_file:
+        with open(self._current_log_file_path, "a", newline='') as log_file:
             fieldnames = ['sensor id', 'temperature', 'timestamp']
             writer = csv.DictWriter(log_file, fieldnames=fieldnames)
             writer.writeheader()
@@ -160,6 +164,7 @@ class WebUI:
 
     def _stop_measurement(self):
         self._enable_measurements = False
+        self._sensor_logger.enable_logging = False
         self._sensor_logger.reset_data()
         self.line_updates1 = ui.timer(0.1, self.update_line_plot, active=False)
         self._hardware_state.change_state(heater_desired_state="off")
@@ -200,6 +205,42 @@ class WebUI:
             self._switch1 = ui.switch('Heaters', on_change=lambda: self._change_heater_state())
             self._switch2 = ui.switch('Fans', on_change=lambda: self._change_fan_state())
 
+        self._create_measurements_table()
+
+    def _create_measurements_table(self):
+        columns = [
+            {'name': 'name', 'label': 'Name', 'field': 'name', 'required': True},
+        ]
+
+        with ui.table(title='Measurements', columns=columns, rows=[], selection='single').classes(
+                'w-auto') as self._table:
+            with self._table.add_slot('bottom-row'):
+                with self._table.row():
+                    with self._table.cell():
+                        ui.button('Download Selected', on_click=self._get_selected)
+        Thread(target=self._watch_table).start()
+
+    def _get_selected(self):
+        if len(self._table.selected) > 0:
+            import webbrowser
+            host = config.web_ui["host"]
+            if host == "0.0.0.0":
+                host = "localhost"
+            url = "http://" + host + ":" + str(config.web_ui["port"]) + "/data/" + self._table.selected[0]["name"]
+            webbrowser.open_new_tab(url)
+
+    def _watch_table(self):
+        names = []
+        while True:
+            filenames = glob.glob(os.path.join(config.data_dir, "*"))
+            for f in filenames:
+                if f is not None or f != "":
+                    if f not in names:
+                        self._table.add_rows({'id': len(names), 'name': f.split(os.sep)[-1]})
+                        names.append(f)
+            time.sleep(5)
+
+
     def _change_heater_state(self):
         if self._switch1.value:
             self._hardware_state.change_state(heater_desired_state="on")
@@ -215,9 +256,9 @@ class WebUI:
 
 class TemperaturePlot:
     def __init__(self):
-        self._plot_n = 4
+        self._plot_n = len(config.sensor_ids)
         self.line_plot = ui.line_plot(n=self._plot_n, limit=4200, figsize=(12, 5), update_every=1) \
-            .with_legend(['pico_ft', 'pic_fb', 'pico_bt', 'pico_bb'], loc='upper center', ncol=self._plot_n)
+            .with_legend(config.sensor_ids, loc='upper center', ncol=self._plot_n)
         self._last_timestamp = {}
 
     def push_data(self, timestamp: List[float], temp: List[float]):
@@ -234,3 +275,8 @@ class TemperaturePlot:
             format_ = matplotlib.dates.DateFormatter(format_str, tz=pytz.timezone("Africa/Accra"))
             ax.xaxis.set_major_formatter(format_)
             self.line_plot.fig.autofmt_xdate()
+
+
+@app.get(path='/data/{name}')
+def data(name):
+    return FileResponse(path=f"./data/" + name, filename=name, media_type='application/octet-stream')
