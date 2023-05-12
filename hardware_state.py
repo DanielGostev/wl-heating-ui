@@ -1,6 +1,4 @@
 
-
-
 class HardwareState:
     def __init__(self):
         self._subscribers = []

@@ -1,5 +1,6 @@
 mqtt:
-  address: 192.168.178.35
+#  address: 192.168.178.35
+  address: 192.168.2.116
   port: 1883
   topic: "temp/pico"
 dataDir: "./data"

@@ -34,9 +34,9 @@ class WebUI:
     def _label_updater(self):
         while True:
             if not self._sensor_logger.enable_logging:
-                self._label1.set_text("Sensor: Pico_fb, no active measurements")
-                self._label2.set_text("Sensor: Pico_bb, no active measurements")
-                self._label3.set_text("Sensor: Pico_bb, no active measurements")
+                self._label1.set_text("Sensor: Pico_ft, no active measurements")
+                self._label2.set_text("Sensor: Pico_fb, no active measurements")
+                self._label3.set_text("Sensor: Pico_bt, no active measurements")
                 self._label4.set_text("Sensor: Pico_bb, no active measurements")
             else:
                 sd1 = self._sensor_logger.get_data(sensor_id="pico_ft")
@@ -79,7 +79,7 @@ class WebUI:
             return
         timestamps = []
         temperatures = []
-        sensor_ids = {"pico_ft", "pico_fb", "pico_bt", "pico_bb"}
+        sensor_ids = config.sensor_ids
         for sensor_id in sensor_ids:
             sd = self._sensor_logger.get_data(sensor_id=sensor_id)
             if sd is None:
@@ -140,7 +140,7 @@ class WebUI:
 
     def _measuring_cycle(self):
         while True:
-            if not self._enable_measurements:
+            if not self._enable_measurements: #turn of if not
                 self._hardware_state.change_state(heater_desired_state="off")
                 self._hardware_state.change_state(fan_desired_state="off")
                 return
@@ -151,11 +151,13 @@ class WebUI:
                     t_max = v.temperature
                 if t_min > v.temperature:
                     t_min = v.temperature  # find t_max and t_min
-            if self.slider.value - 3 <= t_min <= self.slider.value + 3 and self.slider.value - 3 <= t_max <= self.slider.value + 3:
+            if self.slider.value + 1 <= t_min <= self.slider.value + 2 and self.slider.value <= t_max <= self.slider.value + 10:
                 self._hardware_state.change_state(heater_desired_state="off")
                 self._hardware_state.change_state(fan_desired_state="off")
+                self._sensor_logger.enable_logging = False
+                ui.notify("Measurement Cycle is ready")
             else:
-                if t_max > self.slider.value + 3:
+                if t_max > self.slider.value + 10:
                     self._hardware_state.change_state(heater_desired_state="off")
                 else:
                     self._hardware_state.change_state(heater_desired_state="on")
