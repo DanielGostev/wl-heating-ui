@@ -140,7 +140,7 @@ class WebUI:
 
     def _measuring_cycle(self):
         while True:
-            if not self._enable_measurements: #turn of if not
+            if not self._enable_measurements: #turn off if not
                 self._hardware_state.change_state(heater_desired_state="off")
                 self._hardware_state.change_state(fan_desired_state="off")
                 return
